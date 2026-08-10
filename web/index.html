@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="ar">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>مدينة نور B2 - Web GIS</title>
+
+
+    <!-- Leaflet -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    >
+
+
+    <style>
+
+        html,
+        body {
+
+            margin: 0;
+            padding: 0;
+
+            width: 100%;
+            height: 100%;
+
+        }
+
+
+        #map {
+
+            width: 100%;
+            height: 100%;
+
+        }
+
+
+        /* ==============================
+           Labels
+        ============================== */
+
+        .building-label {
+
+            background: transparent !important;
+
+            border: none !important;
+
+            box-shadow: none !important;
+
+            padding: 0 !important;
+
+            font-family: Arial, sans-serif;
+
+            color: black;
+
+            text-align: center;
+
+            white-space: nowrap;
+
+        }
+
+
+        .building-number {
+
+            font-size: 14px;
+
+            font-weight: bold;
+
+        }
+
+
+        .building-type {
+
+            font-size: 13px;
+
+            font-weight: bold;
+
+            margin-left: 5px;
+
+        }
+
+
+        .building-status {
+
+            font-size: 11px;
+
+            font-weight: bold;
+
+            margin-top: 2px;
+
+        }
+
+
+        /* ==============================
+           Statistics
+        ============================== */
+
+        #statistics {
+
+            position: absolute;
+
+            top: 15px;
+
+            right: 15px;
+
+            z-index: 1000;
+
+            width: 230px;
+
+            background: white;
+
+            border-radius: 8px;
+
+            box-shadow:
+                0 2px 10px rgba(0,0,0,0.3);
+
+            font-family: Arial, sans-serif;
+
+        }
+
+
+        #statistics-title {
+
+            background: #333;
+
+            color: white;
+
+            padding: 10px;
+
+            text-align: center;
+
+            font-weight: bold;
+
+        }
+
+
+        #statistics-content {
+
+            padding: 8px;
+
+            max-height: 350px;
+
+            overflow-y: auto;
+
+        }
+
+
+        .stat-row {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            padding: 5px;
+
+            border-bottom: 1px solid #ddd;
+
+            font-size: 13px;
+
+        }
+
+
+        .stat-color {
+
+            width: 14px;
+
+            height: 14px;
+
+            display: inline-block;
+
+            margin-right: 5px;
+
+            border: 1px solid #555;
+
+            vertical-align: middle;
+
+        }
+
+
+        .total {
+
+            text-align: center;
+
+            font-weight: bold;
+
+            padding: 8px;
+
+            background: #eee;
+
+            margin-top: 5px;
+
+        }
+
+
+        /* ==============================
+           Legend
+        ============================== */
+
+        .legend {
+
+            background: white;
+
+            padding: 8px 10px;
+
+            line-height: 22px;
+
+            border-radius: 5px;
+
+            box-shadow:
+                0 1px 5px rgba(0,0,0,0.3);
+
+            font-family: Arial, sans-serif;
+
+        }
+
+
+        .legend-title {
+
+            font-weight: bold;
+
+            text-align: center;
+
+            margin-bottom: 5px;
+
+        }
+
+
+        .legend-item {
+
+            display: flex;
+
+            align-items: center;
+
+        }
+
+
+        .legend-color {
+
+            width: 16px;
+
+            height: 16px;
+
+            margin-right: 6px;
+
+            border: 1px solid #555;
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div id="map"></div>
+
+
+<div id="statistics">
+
+    <div id="statistics-title">
+
+        مدينة نور B2
+
+    </div>
+
+
+    <div id="statistics-content">
+
+        جاري تحميل البيانات...
+
+    </div>
+
+</div>
+
+
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
+
+<script>
+
+
+// ============================================================
+// 1 - إنشاء الخريطة
+// ============================================================
+
+const map = L.map(
+
+    "map",
+
+    {
+
+        preferCanvas: true
+
+    }
+
+).setView(
+
+    [30.1296491, 31.9071551],
+
+    15
+
+);
+
+
+
+// ============================================================
+// 2 - Basemap
+// ============================================================
+
+L.tileLayer(
+
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+
+    {
+
+        maxZoom: 19,
+
+        attribution:
+            "&copy; OpenStreetMap contributors"
+
+    }
+
+).addTo(map);
+
+
+
+// ============================================================
+// 3 - ألوان الحالات
+// ============================================================
+
+const colors = {
+
+    "PC": "#e86b6b",
+
+    "col-rc": "#e00000",
+
+    "Curb": "#d9a6a6",
+
+    "Layer 2": "#e1dfc7",
+
+    "Layer 3": "#d8d4b9",
+
+    "Layer 8": "#d6c950",
+
+    "Layer 9": "#d0c83e",
+
+    "Layer 10": "#d8c84a",
+
+    "Layer 11": "#b9bd25",
+
+    "Layer 12": "#b6b82a",
+
+    "Layer 13": "#b0b52b"
+
+};
+
+
+const defaultColor = "#6fa8dc";
+
+
+
+// ============================================================
+// 4 - قراءة أي Field بدون الاهتمام بـ Capital / Small
+// ============================================================
+
+function getField(feature, fieldName) {
+
+
+    if (
+
+        !feature ||
+
+        !feature.properties
+
+    ) {
+
+        return "";
+
+    }
+
+
+    const properties =
+
+        feature.properties;
+
+
+    // البحث عن اسم الحقل
+
+    // بصرف النظر عن حالة الأحرف
+
+    const realField =
+
+        Object.keys(properties)
+
+        .find(
+
+            key =>
+
+                key.toLowerCase() ===
+
+                fieldName.toLowerCase()
+
+        );
+
+
+    if (
+
+        realField === undefined
+
+    ) {
+
+        return "";
+
+    }
+
+
+    const value =
+
+        properties[realField];
+
+
+    if (
+
+        value === null ||
+
+        value === undefined
+
+    ) {
+
+        return "";
+
+    }
+
+
+    return String(value).trim();
+
+}
+
+
+
+// ============================================================
+// 5 - NUMBER
+// ============================================================
+
+function getNumber(feature) {
+
+    return getField(
+
+        feature,
+
+        "NUMBER"
+
+    );
+
+}
+
+
+
+// ============================================================
+// 6 - TEXT
+// ============================================================
+
+function getType(feature) {
+
+    return getField(
+
+        feature,
+
+        "Text"
+
+    );
+
+}
+
+
+
+// ============================================================
+// 7 - STATUS
+// ============================================================
+
+function getStatus(feature) {
+
+    const value =
+
+        getField(
+
+            feature,
+
+            "status"
+
+        );
+
+
+    if (value === "") {
+
+        return "Unknown";
+
+    }
+
+
+    return value;
+
+}
+
+
+
+// ============================================================
+// 8 - لون العمارة
+// ============================================================
+
+function getColor(feature) {
+
+
+    const status =
+
+        getStatus(feature);
+
+
+    return (
+
+        colors[status] ||
+
+        defaultColor
+
+    );
+
+}
+
+
+
+// ============================================================
+// 9 - Style
+// ============================================================
+
+function style(feature) {
+
+    return {
+
+        color: "#555",
+
+        weight: 1,
+
+        fillColor:
+
+            getColor(feature),
+
+        fillOpacity: 0.75
+
+    };
+
+}
+
+
+
+// ============================================================
+// 10 - تحميل GeoJSON
+// ============================================================
+
+fetch(
+
+    "data/b2.geojson"
+
+)
+
+
+.then(
+
+    response => {
+
+
+        if (!response.ok) {
+
+            throw new Error(
+
+                "لم يتم العثور على ملف b2.geojson"
+
+            );
+
+        }
+
+
+        return response.json();
+
+    }
+
+)
+
+
+.then(
+
+    data => {
+
+
+        console.log(
+
+            "GeoJSON Loaded:",
+
+            data
+
+        );
+
+
+        // ====================================================
+        // عرض أسماء الحقول الموجودة فعليًا
+        // ====================================================
+
+        if (
+
+            data.features.length > 0
+
+        ) {
+
+
+            console.log(
+
+                "Fields الموجودة في GeoJSON:",
+
+                Object.keys(
+
+                    data.features[0].properties
+
+                )
+
+            );
+
+        }
+
+
+
+        // ====================================================
+        // Statistics
+        // ====================================================
+
+        const statistics = {};
+
+        let total = 0;
+
+
+
+        data.features.forEach(
+
+            feature => {
+
+
+                const status =
+
+                    getStatus(feature);
+
+
+                if (
+
+                    !statistics[status]
+
+                ) {
+
+                    statistics[status] = 0;
+
+                }
+
+
+                statistics[status]++;
+
+
+                total++;
+
+            }
+
+        );
+
+
+
+        // ====================================================
+        // GeoJSON Layer
+        // ====================================================
+
+        const layer =
+
+            L.geoJSON(
+
+                data,
+
+                {
+
+
+                    style: style,
+
+
+                    renderer:
+
+                        L.canvas(),
+
+
+
+                    onEachFeature:
+
+                        function(
+
+                            feature,
+
+                            polygon
+
+                        ) {
+
+
+                            // =================================
+                            // قراءة البيانات
+                            // =================================
+
+                            const number =
+
+                                getNumber(
+
+                                    feature
+
+                                );
+
+
+                            const type =
+
+                                getType(
+
+                                    feature
+
+                                );
+
+
+                            const status =
+
+                                getStatus(
+
+                                    feature
+
+                                );
+
+
+                            const statusColor =
+
+                                getColor(
+
+                                    feature
+
+                                );
+
+
+
+                            console.log(
+
+                                "Building:",
+
+                                number,
+
+                                type,
+
+                                status
+
+                            );
+
+
+
+                            // =================================
+                            // LABEL
+                            // =================================
+
+                            const label = `
+
+                                <div>
+
+                                    <div>
+
+                                        <span
+                                            class="building-number"
+                                        >
+                                            ${number}
+                                        </span>
+
+
+                                        <span
+                                            class="building-type"
+                                        >
+                                            ${type}
+                                        </span>
+
+                                    </div>
+
+
+                                    <div
+                                        class="building-status"
+                                        style="
+                                            color:${statusColor};
+                                        "
+                                    >
+                                        ${status}
+                                    </div>
+
+                                </div>
+
+                            `;
+
+
+
+                            polygon.bindTooltip(
+
+                                label,
+
+                                {
+
+                                    permanent: true,
+
+                                    direction: "center",
+
+                                    className:
+                                        "building-label",
+
+                                    opacity: 1
+
+                                }
+
+                            );
+
+
+
+                            // =================================
+                            // Popup
+                            // =================================
+
+                            const popup = `
+
+                                <div
+                                    style="
+                                        direction:rtl;
+                                        text-align:right;
+                                        font-family:Arial;
+                                    "
+                                >
+
+                                    <b>
+                                        رقم العمارة:
+                                    </b>
+
+                                    ${number}
+
+                                    <br><br>
+
+
+                                    <b>
+                                        النوع:
+                                    </b>
+
+                                    ${type}
+
+                                    <br><br>
+
+
+                                    <b>
+                                        الحالة:
+                                    </b>
+
+                                    <span
+                                        style="
+                                            color:${statusColor};
+                                            font-weight:bold;
+                                        "
+                                    >
+
+                                        ${status}
+
+                                    </span>
+
+                                </div>
+
+                            `;
+
+
+                            polygon.bindPopup(
+
+                                popup
+
+                            );
+
+                        }
+
+                }
+
+            ).addTo(map);
+
+
+
+        // ====================================================
+        // Zoom to layer
+        // ====================================================
+
+        const bounds =
+
+            layer.getBounds();
+
+
+        if (
+
+            bounds.isValid()
+
+        ) {
+
+            map.fitBounds(
+
+                bounds,
+
+                {
+
+                    padding: [
+
+                        30,
+
+                        30
+
+                    ]
+
+                }
+
+            );
+
+        }
+
+
+
+        // ====================================================
+        // Statistics
+        // ====================================================
+
+        showStatistics(
+
+            statistics,
+
+            total
+
+        );
+
+
+
+        // ====================================================
+        // Legend
+        // ====================================================
+
+        createLegend();
+
+
+    }
+
+)
+
+
+.catch(
+
+    error => {
+
+
+        console.error(
+
+            "ERROR:",
+
+            error
+
+        );
+
+
+        document.getElementById(
+
+            "statistics-content"
+
+        ).innerHTML = `
+
+            <span
+                style="color:red"
+            >
+
+                خطأ في تحميل البيانات
+
+                <br><br>
+
+                ${error.message}
+
+            </span>
+
+        `;
+
+    }
+
+);
+
+
+
+// ============================================================
+// 11 - Statistics
+// ============================================================
+
+function showStatistics(
+
+    statistics,
+
+    total
+
+) {
+
+
+    const container =
+
+        document.getElementById(
+
+            "statistics-content"
+
+        );
+
+
+    container.innerHTML = "";
+
+
+
+    Object.keys(
+
+        statistics
+
+    ).forEach(
+
+        status => {
+
+
+            const color =
+
+                colors[status] ||
+
+                defaultColor;
+
+
+            container.innerHTML += `
+
+                <div
+                    class="stat-row"
+                >
+
+                    <span>
+
+                        <span
+                            class="stat-color"
+                            style="
+                                background:${color};
+                            "
+                        ></span>
+
+                        ${status}
+
+                    </span>
+
+
+                    <strong>
+
+                        ${statistics[status]}
+
+                    </strong>
+
+                </div>
+
+            `;
+
+        }
+
+    );
+
+
+
+    container.innerHTML += `
+
+        <div
+            class="total"
+        >
+
+            إجمالي العمائر:
+
+            ${total}
+
+        </div>
+
+    `;
+
+}
+
+
+
+// ============================================================
+// 12 - Legend
+// ============================================================
+
+function createLegend() {
+
+
+    const legend =
+
+        L.control({
+
+            position:
+
+                "bottomleft"
+
+        });
+
+
+
+    legend.onAdd =
+
+        function() {
+
+
+            const div =
+
+                L.DomUtil.create(
+
+                    "div",
+
+                    "legend"
+
+                );
+
+
+            div.innerHTML = `
+
+                <div
+                    class="legend-title"
+                >
+
+                    مفتاح الخريطة
+
+                </div>
+
+            `;
+
+
+
+            Object.keys(
+
+                colors
+
+            ).forEach(
+
+                status => {
+
+
+                    div.innerHTML += `
+
+                        <div
+                            class="legend-item"
+                        >
+
+                            <span
+                                class="legend-color"
+                                style="
+                                    background:${colors[status]};
+                                "
+                            ></span>
+
+
+                            ${status}
+
+                        </div>
+
+                    `;
+
+                }
+
+            );
+
+
+            return div;
+
+        };
+
+
+    legend.addTo(map);
+
+}
+
+
+</script>
+
+
+</body>
+
+</html>
